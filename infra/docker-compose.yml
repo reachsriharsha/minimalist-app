@@ -1,0 +1,169 @@
+# infra/docker-compose.yml
+#
+# Local orchestration for the minimalist-app template. Brings up four services
+# on a shared user-defined bridge network with named volumes for stateful data.
+#
+# Default profile: dev-mode (source bind-mounted, uvicorn --reload, Vite HMR).
+# Prod profile (opt-in): `docker compose --profile prod up`.
+#
+# Invoke via the root Makefile; commands expect cwd to be `infra/` so relative
+# paths resolve the way compose default behavior assumes.
+
+name: minimalist-app
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - appnet
+    # No `ports:` — Postgres is reachable only on the compose network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    networks:
+      - appnet
+    # No `ports:` — Redis is reachable only on the compose network.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Compose-level interpolation for values that must exist even when
+      # .env is missing a specific key. env_file above supplies the rest.
+      HOST: 0.0.0.0
+      PORT: "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # Dev bind-mount: host `backend/` over container `/app` so uvicorn
+      # --reload picks up edits. Prod profile (below) omits this.
+      - ../backend:/app
+      # Mask the venv so the host-side absent .venv doesn't overwrite the
+      # image's installed .venv. Named volume keeps the image's .venv intact.
+      - backend_venv:/app/.venv
+    command: ["serve", "--reload"]
+    networks:
+      - appnet
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "curl -fsS http://localhost:8000/readyz >/dev/null || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+      target: dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: "5173"
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      # Dev bind-mount: host `frontend/` over container `/app` for HMR.
+      - ../frontend:/app
+      # Named volume masks /app/node_modules so the container's install
+      # (done during `bun install --frozen-lockfile` in the `deps` stage)
+      # survives the host bind mount.
+      - frontend_node_modules:/app/node_modules
+    networks:
+      - appnet
+
+  # --- prod profile overrides ---------------------------------------------
+  # Separate services guarded by `profiles: ["prod"]`. They reuse the same
+  # Dockerfile targets but without bind mounts and without --reload.
+
+  backend-prod:
+    profiles: ["prod"]
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    networks:
+      - appnet
+    command: ["serve"]
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "curl -fsS http://localhost:8000/readyz >/dev/null || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  frontend-prod:
+    profiles: ["prod"]
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+      target: prod
+    restart: unless-stopped
+    depends_on:
+      - backend-prod
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    networks:
+      - appnet
+
+volumes:
+  pgdata:
+  redisdata:
+  frontend_node_modules:
+  backend_venv:
+
+networks:
+  appnet:
+    driver: bridge

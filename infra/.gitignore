@@ -1,0 +1,8 @@
+# infra/.gitignore
+#
+# Ignore any real env files under infra/ but keep the committed template
+# (.env.example) so the stack remains reproducible from a fresh clone.
+
+.env
+.env.*
+!.env.example
