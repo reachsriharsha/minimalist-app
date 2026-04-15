@@ -49,7 +49,10 @@ for arg in "$@"; do
 done
 
 probe_ready() {
-  curl -fsS -o /dev/null -m 2 "${base_url}/readyz"
+  # -f: fail on HTTP errors; -s: silent; -m 2: 2s per-request timeout.
+  # Deliberately omit -S so curl stays quiet on retries — the [test.sh]
+  # waiting lines already communicate progress without the noise.
+  curl -fs -o /dev/null -m 2 "${base_url}/readyz"
 }
 
 wait_for_ready() {
