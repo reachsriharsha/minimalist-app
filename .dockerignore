@@ -1,0 +1,49 @@
+# Repo-root .dockerignore
+#
+# Applies when a Docker build uses the repo root as its build context. The
+# per-service Dockerfiles in this template use `context: ..` from the compose
+# file (anchored at infra/), so this file is the first filter the builder sees.
+#
+# Keep this list conservative: it should exclude VCS metadata, agent state,
+# docs, and per-service build artifacts that are already covered by
+# backend/.dockerignore and frontend/.dockerignore.
+
+# VCS / CI / editor state
+.git/
+.gitignore
+.gitattributes
+.github/
+.claude/
+.vscode/
+.idea/
+
+# Docs & specs (not needed in runtime images)
+docs/
+README.md
+conventions.md
+LICENSE
+
+# Per-service build artifacts and local-only state
+backend/.venv/
+backend/.pytest_cache/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Env files — never ship real env into an image. Keep .env.example (used as a
+# template), drop everything else.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Infra-local state
+infra/.env
+infra/.env.*
+!infra/.env.example
+
+# OS junk
+.DS_Store
+Thumbs.db
