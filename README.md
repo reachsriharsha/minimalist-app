@@ -59,6 +59,64 @@ This template uses the **AutoDev** workflow, in which two agents collaborate wit
 
 Every Atlas session begins by reading [`conventions.md`](conventions.md); every feature's specs live under [`docs/specs/`](docs/specs/). See [`docs/specs/README.md`](docs/specs/README.md) for a guide to reading a feature end-to-end.
 
+## Running with Docker
+
+The full stack (FastAPI backend, Vite + React frontend, Postgres, Redis) runs under `docker-compose`. The compose file lives at [`infra/docker-compose.yml`](infra/docker-compose.yml); a small root `Makefile` wraps the common commands so you do not need to `cd infra` every time.
+
+### Prerequisites
+
+- Docker Engine 20.10+ or Docker Desktop 4.x+, providing `docker compose` (v2).
+- Host ports `8000` (backend) and `5173` (frontend dev) must be free.
+
+### First-run setup
+
+```bash
+cp infra/.env.example infra/.env
+make up
+```
+
+`make up` builds the images and starts all four services in the background. On a clean machine the first run takes a minute or two; subsequent runs use cached image layers and start in seconds.
+
+When the stack is healthy:
+
+- Frontend (Vite dev server with HMR): http://localhost:5173
+- Backend (FastAPI): http://localhost:8000 — try `http://localhost:8000/readyz` or `http://localhost:8000/api/v1/hello`.
+- Postgres and Redis are reachable only on the compose network by design; they do not publish ports to the host.
+
+By default the backend container runs `alembic upgrade head` on startup (controlled by `MIGRATE=1` in `infra/.env`). Alembic no-ops if the database is already at head.
+
+### Common commands
+
+| Command | What it does |
+|---|---|
+| `make up` | Build and start the dev stack (detached). |
+| `make down` | Stop and remove containers. Named volumes are preserved. |
+| `make logs` | Tail logs for all services. |
+| `make ps` | Show service status. |
+| `make build` | Rebuild images without starting services. |
+| `make migrate` | Run `alembic upgrade head` as a one-shot. |
+| `make clean` | **Destructive.** Stop the stack and delete named volumes (database contents are lost). |
+| `make backend-shell` | Open a shell in the running backend container. |
+| `make frontend-shell` | Open a shell in the running frontend container. |
+| `make db-shell` | Open `psql` in the postgres container. |
+
+### Production profile (optional)
+
+A minimal `prod` profile builds the frontend into a static bundle and serves it from `nginx:alpine`; the backend runs without `--reload`. It is opt-in:
+
+```bash
+cd infra && docker compose --profile prod up -d --build
+```
+
+This exists so the Dockerfiles are exercised against a production-shape build. It is **not** a deployment story — real deployments (DigitalOcean, AWS, Azure) are the subject of a later infra feature that will populate `deployment/`.
+
+### Source of truth
+
+- Compose topology: [`infra/docker-compose.yml`](infra/docker-compose.yml)
+- Env template: [`infra/.env.example`](infra/.env.example) (copy to `infra/.env`; the real file is gitignored)
+- Backend image: [`backend/Dockerfile`](backend/Dockerfile)
+- Frontend image: [`frontend/Dockerfile`](frontend/Dockerfile)
+
 ## License
 
 Released under the MIT License. See [`LICENSE`](LICENSE) for the full text.
