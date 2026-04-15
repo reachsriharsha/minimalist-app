@@ -1,0 +1,51 @@
+.app {
+  text-align: left;
+}
+
+.app h1 {
+  margin-bottom: 0.25rem;
+}
+
+.app .subtitle {
+  margin-top: 0;
+  opacity: 0.7;
+  font-size: 0.95rem;
+}
+
+.state {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+}
+
+.state--loading {
+  opacity: 0.75;
+}
+
+.state--error {
+  border-color: rgba(220, 50, 50, 0.5);
+  background-color: rgba(220, 50, 50, 0.08);
+}
+
+.state--success {
+  border-color: rgba(50, 180, 100, 0.5);
+  background-color: rgba(50, 180, 100, 0.08);
+}
+
+.state dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0.5rem 0 0;
+}
+
+.state dt {
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.state dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
