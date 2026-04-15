@@ -1,0 +1,32 @@
+# backend/.dockerignore
+#
+# Applies when the Docker build context is `backend/` (or when the repo-root
+# context reaches into backend/). Keep the build context small and secret-free.
+
+# Python / uv local state
+.venv/
+.pytest_cache/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Test artifacts (tests themselves are copied in for the image; caches are not)
+.coverage
+.coverage.*
+htmlcov/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Env files — never ship real env; keep the example as a template.
+.env
+.env.*
+!.env.example
+
+# VCS
+.git/
+.gitignore

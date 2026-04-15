@@ -1,0 +1,25 @@
+# frontend/.dockerignore
+#
+# Applies when the Docker build context is `frontend/` (or when the repo-root
+# context reaches into frontend/). Keeps node_modules, build artifacts, and
+# local env files out of the build context.
+
+# Bun / Node local state
+node_modules/
+.vite/
+dist/
+*.tsbuildinfo
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Env files — never ship real env; keep the example as a template.
+.env
+.env.*
+!.env.example
+
+# VCS
+.git/
+.gitignore
