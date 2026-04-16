@@ -17,6 +17,15 @@ Contents:
   bootstrap on first creation and optionally grants extra roles.
   Not a general-purpose helper; real login paths (002, 003) create
   their own find-or-create plus identity-linking routines.
+
+Note on async-session + relationships: in SQLAlchemy 2.x, accessing a
+relationship attribute (``user.roles``) on an instance whose collection
+has not yet been loaded triggers a lazy SELECT. When the parent session
+is async, that implicit SELECT goes through the greenlet-bridged
+``await_only`` and raises ``MissingGreenlet`` if called from bare
+attribute access. We therefore load role *names* via explicit SELECTs
+over the ``user_roles`` association table, never via the ORM
+relationship accessor inside this module.
 """
 
 from __future__ import annotations
@@ -24,13 +33,13 @@ from __future__ import annotations
 from typing import Iterable
 
 from redis.asyncio import Redis
-from sqlalchemy import select
+from sqlalchemy import insert, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import sessions
-from app.auth.bootstrap import grant_admin_if_listed
-from app.auth.models import Role, User
+from app.auth.bootstrap import admin_emails_from_settings
+from app.auth.models import Role, User, UserRole
 from app.settings import Settings
 
 
@@ -48,44 +57,65 @@ async def revoke_sessions_for_user(
     await sessions.revoke_all_for_user(user_id, redis=redis)
 
 
-async def _ensure_user_role(session: AsyncSession, user: User) -> None:
-    """Ensure ``user`` has the default ``user`` role."""
+async def _current_role_names(
+    session: AsyncSession, user_id: int
+) -> set[str]:
+    """Return the set of role names currently granted to ``user_id``.
 
-    if any(r.name == "user" for r in user.roles):
-        return
-    result = await session.execute(select(Role).where(Role.name == "user"))
-    role = result.scalar_one_or_none()
-    if role is None:
-        # Migration seeds the role; missing seed is a bug in ops, not
-        # something we silently paper over by creating the row here.
-        return
-    user.roles.append(role)
-    await session.flush()
-
-
-async def _grant_extra_roles(
-    session: AsyncSession,
-    user: User,
-    names: Iterable[str],
-) -> None:
-    """Grant each named role to ``user`` (case-sensitive; unknown skipped)."""
-
-    wanted = {n for n in names if n}
-    wanted.discard("user")  # handled by ``_ensure_user_role``
-    if not wanted:
-        return
-
-    existing = {r.name for r in user.roles}
-    to_grant = wanted - existing
-    if not to_grant:
-        return
+    Reads via an explicit SELECT join over ``user_roles`` / ``roles`` so
+    this is safe to call on a freshly-created user in an async session
+    without triggering an implicit lazy-load greenlet error.
+    """
 
     result = await session.execute(
-        select(Role).where(Role.name.in_(to_grant))
+        select(Role.name)
+        .select_from(UserRole)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(UserRole.user_id == user_id)
     )
-    for role in result.scalars().all():
-        user.roles.append(role)
-    await session.flush()
+    return {name for (name,) in result.all()}
+
+
+async def _grant_role_if_missing(
+    session: AsyncSession,
+    user_id: int,
+    role_name: str,
+    *,
+    already_granted: set[str],
+) -> bool:
+    """Idempotently insert a ``user_roles`` row.
+
+    Returns ``True`` when an insert actually happened. ``already_granted``
+    is the caller-supplied set of existing role names for the user; we
+    mutate it in place on a successful grant so sequential calls stay
+    coherent without a re-read.
+    """
+
+    if role_name in already_granted:
+        return False
+
+    result = await session.execute(
+        select(Role.id).where(Role.name == role_name)
+    )
+    role_id = result.scalar_one_or_none()
+    if role_id is None:
+        # Migration seeds ``admin`` and ``user``; anything else is a
+        # caller bug (unknown role). Skip silently rather than erroring.
+        return False
+
+    try:
+        await session.execute(
+            insert(UserRole).values(user_id=user_id, role_id=role_id)
+        )
+    except IntegrityError:
+        # Row already exists under a concurrent writer. Keep the state
+        # the caller believes they have.
+        await session.rollback()
+        already_granted.add(role_name)
+        return False
+
+    already_granted.add(role_name)
+    return True
 
 
 async def find_or_create_user_for_test(
@@ -95,7 +125,7 @@ async def find_or_create_user_for_test(
     display_name: str | None,
     extra_roles: Iterable[str] = (),
     settings: Settings,
-) -> User:
+) -> tuple[User, list[str]]:
     """Find or create a :class:`User` for the test-only mint endpoint.
 
     Semantics:
@@ -111,6 +141,10 @@ async def find_or_create_user_for_test(
       tolerated via a ``UNIQUE`` violation + re-read.
     - Does **not** create an ``auth_identities`` row. Identity rows
       belong to real login paths (002/003).
+
+    Returns a ``(user, role_names)`` pair so callers can build a session
+    payload without touching the lazy-loaded :attr:`User.roles`
+    collection on the still-live async session.
     """
 
     stmt = select(User).where(User.email == email)
@@ -123,26 +157,38 @@ async def find_or_create_user_for_test(
         try:
             await session.flush()
         except IntegrityError:
-            # A concurrent mint created the row first. Rolling back the
-            # nested state and re-reading is simpler than SAVEPOINT-ing
-            # the insert. Matches §7.7 of the design doc's guidance.
             await session.rollback()
             result = await session.execute(stmt)
             user = result.scalar_one()
 
-    # Always ensure defaults. These are all idempotent when the user
-    # already has the role, so a second mint is a no-op.
-    await _ensure_user_role(session, user)
-    await grant_admin_if_listed(user, session=session, settings=settings)
-    await _grant_extra_roles(session, user, extra_roles)
+    assert user.id is not None  # flushed above
+
+    role_names = await _current_role_names(session, user.id)
+
+    # Always ensure the default ``user`` role.
+    await _grant_role_if_missing(
+        session, user.id, "user", already_granted=role_names
+    )
+
+    # ADMIN_EMAILS bootstrap (case-insensitive membership test).
+    admins = admin_emails_from_settings(settings)
+    if (email or "").strip().lower() in admins:
+        await _grant_role_if_missing(
+            session, user.id, "admin", already_granted=role_names
+        )
+
+    # Extra caller-specified roles (unknown names are silently skipped
+    # inside ``_grant_role_if_missing``).
+    for name in extra_roles or ():
+        if not name:
+            continue
+        await _grant_role_if_missing(
+            session, user.id, name, already_granted=role_names
+        )
 
     await session.commit()
-    # Re-fetch to make ``user.roles`` reflect the committed state. With
-    # ``expire_on_commit=False`` on the sessionmaker (see ``app/db.py``),
-    # the attribute collection is still valid — but a selectin-loaded
-    # relationship is lazy on first access, so we trigger it here.
-    _ = user.roles  # noqa: B018 - force selectin load
-    return user
+
+    return user, sorted(role_names)
 
 
 __all__ = [

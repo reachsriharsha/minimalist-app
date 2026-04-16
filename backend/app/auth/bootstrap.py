@@ -18,14 +18,23 @@ This module is intentionally small. It:
 The user-creation code path itself lives in the test-only mint
 (``POST /api/v1/_test/session``) and will later live in
 ``feat_auth_002`` (OTP verify) and ``feat_auth_003`` (OAuth callback).
+
+Implementation note: all role-set manipulation goes through explicit
+SELECT/INSERT on the association table, not through the ORM relationship
+accessor :attr:`app.auth.models.User.roles`. Touching that attribute on a
+freshly-created, async-session-bound :class:`User` raises
+``MissingGreenlet`` because SQLAlchemy's implicit lazy-load path is not
+bridged to ``await`` when you access it as a plain attribute. See
+``backend/app/auth/service.py`` for the same pattern.
 """
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import insert, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import Role, User
+from app.auth.models import Role, User, UserRole
 from app.settings import Settings
 
 
@@ -53,8 +62,7 @@ async def grant_admin_if_listed(
 
     The check is case-insensitive: the settings side lower-cases the
     listed addresses and we lower-case ``user.email`` here. Idempotent:
-    calling twice in sequence never adds a second ``admin`` row to
-    ``user.roles``.
+    calling twice in sequence never adds a second ``admin`` row.
 
     The caller is responsible for committing the transaction. This
     helper flushes so the new association is visible to subsequent
@@ -69,20 +77,39 @@ async def grant_admin_if_listed(
     if normalised not in admins:
         return False
 
-    if any(role.name == "admin" for role in user.roles):
-        # Already an admin — nothing to do. Preserves idempotency.
+    # Look up the ``admin`` role by name. Migration seeds it, so the
+    # row exists on a healthy database.
+    admin_row = (
+        await session.execute(select(Role.id).where(Role.name == "admin"))
+    ).scalar_one_or_none()
+    if admin_row is None:
         return False
 
-    result = await session.execute(select(Role).where(Role.name == "admin"))
-    admin_role = result.scalar_one_or_none()
-    if admin_role is None:
-        # The migration seeds ``admin``; if it is missing, the database
-        # is not in the expected state. Refuse silently rather than
-        # creating a role row here, which belongs to the migration.
+    # Check idempotency via a direct query on the association table —
+    # avoids triggering a lazy-load on ``user.roles`` from an async
+    # session.
+    existing = (
+        await session.execute(
+            select(UserRole.role_id).where(
+                UserRole.user_id == user.id,
+                UserRole.role_id == admin_row,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
         return False
 
-    user.roles.append(admin_role)
-    await session.flush()
+    try:
+        await session.execute(
+            insert(UserRole).values(user_id=user.id, role_id=admin_row)
+        )
+        await session.flush()
+    except IntegrityError:
+        # Race: someone else just inserted the same row. Treat as a
+        # no-op grant (the caller wanted admin, admin is now present).
+        await session.rollback()
+        return False
+
     return True
 
 

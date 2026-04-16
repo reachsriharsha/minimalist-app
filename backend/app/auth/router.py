@@ -16,9 +16,11 @@ And one env-gated route mounted under ``/api/v1/_test`` **only when**
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from types import SimpleNamespace
 
 from app.auth import service, sessions
 from app.auth.dependencies import current_user
@@ -26,9 +28,33 @@ from app.auth.models import User
 from app.auth.schemas import AuthContext, MeResponse, TestSessionRequest
 from app.db import get_session
 from app.redis_client import get_redis
-from app.settings import Settings, get_settings
+from app.settings import Settings
+
+
+def _settings(request: Request) -> Settings:
+    """Pull the live :class:`Settings` off ``app.state``.
+
+    ``create_app`` installs the exact :class:`Settings` instance the
+    caller passed (or the env-derived default) onto ``app.state``; tests
+    that build an app with a synthetic :class:`Settings` want *that*
+    value flowing into every handler, not the lru-cached env default
+    that ``app.settings.get_settings`` returns. See
+    ``docs/specs/feat_auth_001/design_auth_001.md`` → "Settings
+    additions".
+    """
+
+    return request.app.state.settings
 
 router = APIRouter(tags=["auth"])
+
+
+# Lightweight adapter so :func:`app.auth.sessions.create` — which reads
+# ``user.id``, ``user.email``, and iterates ``user.roles``-with-``.name``
+# — works with the ``(user, role_names)`` tuple returned by the service
+# layer, without triggering an async lazy-load on :attr:`User.roles`.
+def _UserLike(*, id: int, email: str, role_names: list[str]):  # noqa: N802
+    roles = [SimpleNamespace(name=n) for n in role_names]
+    return SimpleNamespace(id=id, email=email, roles=roles)
 
 
 @router.get("/me", response_model=MeResponse)
@@ -68,7 +94,7 @@ async def logout(
     response: Response,
     ctx: AuthContext = Depends(current_user),
     redis: Redis = Depends(get_redis),
-    settings: Settings = Depends(get_settings),
+    settings: Settings = Depends(_settings),
 ) -> Response:
     """Invalidate the current session and clear the cookie."""
 
@@ -104,7 +130,7 @@ async def mint_test_session(
     response: Response,
     db: AsyncSession = Depends(get_session),
     redis: Redis = Depends(get_redis),
-    settings: Settings = Depends(get_settings),
+    settings: Settings = Depends(_settings),
 ) -> MeResponse:
     """Mint a session for the given email. ``env == "test"`` only.
 
@@ -114,7 +140,7 @@ async def mint_test_session(
     same schema in both places.
     """
 
-    user = await service.find_or_create_user_for_test(
+    user, role_names = await service.find_or_create_user_for_test(
         db,
         email=body.email,
         display_name=body.display_name,
@@ -123,7 +149,7 @@ async def mint_test_session(
     )
 
     session_id = await sessions.create(
-        user,
+        _UserLike(id=user.id, email=user.email, role_names=role_names),
         redis=redis,
         ttl_seconds=settings.session_ttl_seconds,
     )
@@ -142,7 +168,7 @@ async def mint_test_session(
         user_id=user.id,
         email=user.email,
         display_name=user.display_name,
-        roles=[r.name for r in user.roles],
+        roles=list(role_names),
     )
 
 

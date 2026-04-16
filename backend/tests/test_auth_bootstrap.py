@@ -3,6 +3,14 @@
 Covers every case in ``test_auth_001.md`` → ``test_auth_bootstrap.py``.
 Each test exercises ``grant_admin_if_listed`` against a fresh session
 opened on the real test database.
+
+Note on role readback: we verify role membership by re-reading the
+``user_roles`` association table with an explicit JOIN, rather than by
+touching :attr:`User.roles` on the async-session-live instance. The ORM
+relationship's implicit lazy load is not bridged to ``await`` in
+SQLAlchemy 2.x async sessions (``MissingGreenlet``), and this module is
+the one that enforces that the *production* code goes through explicit
+SELECTs — so the test suite follows the same rule.
 """
 
 from __future__ import annotations
@@ -15,7 +23,7 @@ from app.auth.bootstrap import (
     admin_emails_from_settings,
     grant_admin_if_listed,
 )
-from app.auth.models import User
+from app.auth.models import Role, User, UserRole
 from app.db import build_sessionmaker
 from app.settings import Settings, reset_settings_cache
 
@@ -31,9 +39,6 @@ async def db_session(require_db):
     try:
         sm = build_sessionmaker(engine)
         async with engine.begin() as conn:
-            # Truncate with CASCADE to reset ``users``, ``user_roles``,
-            # and ``auth_identities`` between tests without touching
-            # ``roles`` (which is seeded by the migration).
             await conn.execute(
                 text(
                     "TRUNCATE TABLE auth_identities, user_roles, users "
@@ -57,6 +62,18 @@ async def _make_user(
     return user
 
 
+async def _role_names(session, user_id: int) -> set[str]:
+    """Return the role names currently granted to ``user_id``."""
+
+    result = await session.execute(
+        select(Role.name)
+        .select_from(UserRole)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(UserRole.user_id == user_id)
+    )
+    return {name for (name,) in result.all()}
+
+
 def _settings(admin_emails: str) -> Settings:
     """Build a ``Settings`` instance without touching env vars."""
 
@@ -72,9 +89,10 @@ async def test_empty_admin_emails_never_grants(db_session):
     granted = await grant_admin_if_listed(
         user, session=db_session, settings=settings
     )
+    await db_session.commit()
 
     assert granted is False
-    assert [r.name for r in user.roles] == []
+    assert await _role_names(db_session, user.id) == set()
 
 
 async def test_exact_match_grants(db_session):
@@ -86,9 +104,10 @@ async def test_exact_match_grants(db_session):
     granted = await grant_admin_if_listed(
         user, session=db_session, settings=settings
     )
+    await db_session.commit()
 
     assert granted is True
-    assert "admin" in [r.name for r in user.roles]
+    assert "admin" in await _role_names(db_session, user.id)
 
 
 async def test_case_insensitive_match(db_session):
@@ -100,9 +119,10 @@ async def test_case_insensitive_match(db_session):
     granted = await grant_admin_if_listed(
         user, session=db_session, settings=settings
     )
+    await db_session.commit()
 
     assert granted is True
-    assert "admin" in [r.name for r in user.roles]
+    assert "admin" in await _role_names(db_session, user.id)
 
 
 async def test_whitespace_tolerant(db_session):
@@ -114,9 +134,10 @@ async def test_whitespace_tolerant(db_session):
     granted = await grant_admin_if_listed(
         user, session=db_session, settings=settings
     )
+    await db_session.commit()
 
     assert granted is True
-    assert "admin" in [r.name for r in user.roles]
+    assert "admin" in await _role_names(db_session, user.id)
 
 
 async def test_non_member_not_granted(db_session):
@@ -128,9 +149,10 @@ async def test_non_member_not_granted(db_session):
     granted = await grant_admin_if_listed(
         user, session=db_session, settings=settings
     )
+    await db_session.commit()
 
     assert granted is False
-    assert "admin" not in [r.name for r in user.roles]
+    assert "admin" not in await _role_names(db_session, user.id)
 
 
 def test_settings_cache_reflects_env(monkeypatch):
@@ -167,13 +189,27 @@ async def test_idempotent_grant(db_session):
     second = await grant_admin_if_listed(
         user, session=db_session, settings=settings
     )
+    await db_session.commit()
 
     assert first is True
     # Second call returns False because the role is already present.
     assert second is False
 
-    admin_count = sum(1 for r in user.roles if r.name == "admin")
-    assert admin_count == 1
+    # Exactly one row in user_roles linking user -> admin role.
+    result = await db_session.execute(
+        select(UserRole).where(UserRole.user_id == user.id)
+    )
+    rows = result.scalars().all()
+    admin_ids = {
+        r[0]
+        for r in (
+            await db_session.execute(
+                select(Role.id).where(Role.name == "admin")
+            )
+        ).all()
+    }
+    admin_rows = [r for r in rows if r.role_id in admin_ids]
+    assert len(admin_rows) == 1
 
 
 def test_admin_emails_from_settings_helper():
