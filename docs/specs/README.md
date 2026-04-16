@@ -41,5 +41,6 @@ The full ruleset for feature IDs, branch names, commit prefixes, PR titles, labe
 | `feat_frontend_001`     | Planned    | Vite + React + TypeScript app skeleton managed with `bun`.                  |
 | `feat_infra_001`        | Planned    | Dockerfiles, `docker-compose.yml`, `.env` templates, local orchestration.   |
 | `feat_testing_001`      | Planned    | `test.sh` driver, test conventions, minimal backend + frontend test examples.|
+| `feat_backend_002`      | In Spec    | Backend rules (`backend/RULES.md`), logging callsite + redaction, items domain move. |
 
 Future features append rows to this table as they are planned.
