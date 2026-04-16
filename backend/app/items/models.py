@@ -1,13 +1,11 @@
-"""SQLAlchemy ORM models for the scaffold."""
+"""SQLAlchemy ORM models for the ``items`` domain."""
 
 from __future__ import annotations
 
 from sqlalchemy import String
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
-
-class Base(DeclarativeBase):
-    """Declarative base for all ORM models in the backend package."""
+from app.db import Base
 
 
 class Item(Base):
@@ -19,4 +17,4 @@ class Item(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
 
 
-__all__ = ["Base", "Item"]
+__all__ = ["Item"]
