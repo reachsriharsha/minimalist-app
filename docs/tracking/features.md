@@ -2,4 +2,9 @@
 
 | Feature ID | Title | Status | Spec PR | Issues | Impl PRs | Tests |
 |---|---|---|---|---|---|---|
-| feat_conventions_001 | add project conventions, spec scaffolding, license, and README | Specced | #1 | - | - | - |
+| feat_conventions_001 | project conventions, spec scaffolding, license, and README | Merged | #1 | #2 | #3 | - |
+| feat_backend_001 | FastAPI backend scaffold | Merged | #4 | #5 | #6 | - |
+| feat_frontend_001 | frontend scaffold + hello-world page | Merged | #7 | #8 | #9 | - |
+| feat_infra_001 | docker-compose stack + dockerfiles | Merged | #11 | #10 | #12 | - |
+| feat_testing_001 | external REST functional test suite | Merged | #14 | #13 | #15 | - |
+| feat_backend_002 | backend rules and logging discipline | In Build | #17 | #16 | #18 | - |

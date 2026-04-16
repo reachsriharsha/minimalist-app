@@ -1,4 +1,9 @@
-"""Pydantic response models for the scaffold's public endpoints."""
+"""Pydantic response models shared across the scaffold's infra endpoints.
+
+Per ``backend/RULES.md`` §1, per-domain schemas live under the domain folder
+(e.g., :mod:`app.items.schemas`). This module keeps only the cross-cutting
+schemas: health/readiness envelopes and the shared error envelope.
+"""
 
 from __future__ import annotations
 
@@ -21,12 +26,6 @@ class ReadinessResponse(BaseModel):
     checks: DependencyCheck
 
 
-class HelloResponse(BaseModel):
-    message: str
-    item_name: str
-    hello_count: int
-
-
 class ErrorBody(BaseModel):
     code: str
     message: str
@@ -41,7 +40,6 @@ __all__ = [
     "HealthResponse",
     "DependencyCheck",
     "ReadinessResponse",
-    "HelloResponse",
     "ErrorBody",
     "ErrorEnvelope",
 ]

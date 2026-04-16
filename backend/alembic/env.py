@@ -13,7 +13,12 @@ from alembic import context
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy import pool
 
-from app.models import Base
+from app.db import Base
+
+# Ensure every ORM model class is registered on ``Base.metadata`` before
+# alembic reads ``target_metadata``. Importing the domain ``models`` module
+# is a deliberate side-effect import: autogenerate diffs depend on it.
+import app.items.models  # noqa: F401
 from app.settings import get_settings
 
 config = context.config
