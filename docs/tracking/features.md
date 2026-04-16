@@ -7,4 +7,4 @@
 | feat_frontend_001 | frontend scaffold + hello-world page | Merged | #7 | #8 | #9 | - |
 | feat_infra_001 | docker-compose stack + dockerfiles | Merged | #11 | #10 | #12 | - |
 | feat_testing_001 | external REST functional test suite | Merged | #14 | #13 | #15 | - |
-| feat_backend_002 | backend rules and logging discipline | In Build | #17 | #16 | #18 | - |
+| feat_backend_002 | backend rules and logging discipline | Merged | #17 | #16 | #18 | - |
