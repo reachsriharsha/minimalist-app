@@ -42,5 +42,6 @@ The full ruleset for feature IDs, branch names, commit prefixes, PR titles, labe
 | `feat_infra_001`        | Planned    | Dockerfiles, `docker-compose.yml`, `.env` templates, local orchestration.   |
 | `feat_testing_001`      | Planned    | `test.sh` driver, test conventions, minimal backend + frontend test examples.|
 | `feat_backend_002`      | In Build   | Backend rules (`backend/RULES.md`), logging callsite + redaction, items domain move. |
+| `feat_auth_001`         | In Spec    | Auth foundation: users/roles/identities schema, Redis sessions, `SessionMiddleware`, `/auth/me`, `/auth/logout`. |
 
 Future features append rows to this table as they are planned.
