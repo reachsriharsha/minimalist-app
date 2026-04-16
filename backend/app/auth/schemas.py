@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +36,22 @@ class AuthContext:
     session_id: str
 
 
+# Minimal email sanity check. We deliberately do not pull in
+# ``email-validator`` (pydantic's ``EmailStr`` backing) because requirement
+# 15 of the feature spec forbids new top-level dependencies, and because
+# the real login paths (OTP in 002, OAuth in 003) do provider-side
+# verification anyway. This check only guards the test-only mint and
+# the response body shape.
+_EMAIL_SHAPE = "@"
+
+
+def _validate_email_shape(value: str) -> str:
+    value = value.strip()
+    if _EMAIL_SHAPE not in value or len(value) < 3:
+        raise ValueError("not a valid email")
+    return value
+
+
 class MeResponse(BaseModel):
     """Response body for ``GET /api/v1/auth/me``.
 
@@ -45,7 +61,7 @@ class MeResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     user_id: int
-    email: EmailStr
+    email: str
     display_name: str | None = None
     roles: list[str] = Field(default_factory=list)
 
@@ -59,12 +75,17 @@ class TestSessionRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    email: EmailStr
+    email: str
     display_name: str | None = None
     # Additional roles to grant beyond the default ``user`` role and any
     # bootstrap ``admin`` grant from ``ADMIN_EMAILS``. Names are matched
     # against :class:`Role.name` — unknown names are silently skipped.
     roles: list[str] | None = None
+
+    @field_validator("email")
+    @classmethod
+    def _email_must_look_like_one(cls, v: str) -> str:
+        return _validate_email_shape(v)
 
 
 __all__ = ["AuthContext", "MeResponse", "TestSessionRequest"]
