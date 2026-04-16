@@ -22,6 +22,7 @@ feat_<domain>_<NNN>
 | `frontend`    | Web UI (Vite + React + TypeScript).                                      |
 | `infra`       | Docker images, `docker-compose`, local orchestration, environment files. |
 | `testing`     | Test harness (`test.sh`), test tooling, cross-cutting test utilities.    |
+| `auth`        | Identity, authentication flows (OAuth + OTP), sessions, roles, authorization primitives. |
 
 ### Adding a new domain
 
