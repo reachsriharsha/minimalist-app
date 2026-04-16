@@ -20,7 +20,11 @@ from app.api.v1 import api_v1_router
 from app.db import build_engine, build_sessionmaker
 from app.errors import install_exception_handlers
 from app.logging import configure_logging, get_logger
-from app.middleware import ExceptionEnvelopeMiddleware, RequestIDMiddleware
+from app.middleware import (
+    ExceptionEnvelopeMiddleware,
+    RequestIDMiddleware,
+    SessionMiddleware,
+)
 from app.redis_client import build_redis
 from app.settings import Settings, get_settings
 
@@ -78,9 +82,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     # Middleware order (outermost-first after ServerErrorMiddleware):
-    #   RequestIDMiddleware -> ExceptionEnvelopeMiddleware -> ExceptionMiddleware -> app
+    #   RequestIDMiddleware
+    #     -> SessionMiddleware
+    #       -> ExceptionEnvelopeMiddleware
+    #         -> ExceptionMiddleware (Starlette-internal)
+    #           -> app
+    #
     # ``add_middleware`` prepends to the stack, so the LAST call is outermost.
+    # ``SessionMiddleware`` sits inside ``RequestIDMiddleware`` so the one
+    # log event it emits carries ``request_id``, and sits outside the
+    # exception envelope so any 401/403 raised by a dependency still flows
+    # through the envelope handler cleanly.
     app.add_middleware(ExceptionEnvelopeMiddleware)
+    app.add_middleware(SessionMiddleware)
     app.add_middleware(
         RequestIDMiddleware, header_name=resolved.request_id_header
     )
@@ -89,6 +103,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(api_v1_router)
+
+    # Env-gated test-only session mint. Imported inside the branch so
+    # production builds do not even parse the symbol. See
+    # ``docs/specs/feat_auth_001/design_auth_001.md`` →
+    # "Test-only session-mint endpoint".
+    if resolved.env == "test":
+        from app.auth.router import test_router
+
+        app.include_router(test_router, prefix="/api/v1")
 
     return app
 
