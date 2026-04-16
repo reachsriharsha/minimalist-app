@@ -37,6 +37,33 @@ class Settings(BaseSettings):
 
     request_id_header: str = "X-Request-ID"
 
+    # ---- Auth (feat_auth_001) -------------------------------------------
+    # Session cookie and role-bootstrap controls for the auth foundation.
+    # See ``docs/design/auth-login-and-roles.md`` §§2, 8, 11 for rationale.
+    session_cookie_name: str = "session"
+    session_ttl_seconds: int = 86400
+    session_cookie_secure: bool = False
+    # Raw comma-separated list; parse via :attr:`admin_emails_set`. Empty
+    # string (the default) yields an empty set, so a fresh clone grants
+    # admin to nobody.
+    admin_emails: str = ""
+
+    @property
+    def admin_emails_set(self) -> frozenset[str]:
+        """Parsed, lower-cased set of bootstrap-admin email addresses.
+
+        Empty fragments (from trailing or duplicate commas) are skipped.
+        Whitespace around each entry is stripped. Matching against a user
+        email is case-insensitive because the stored form is lower-cased
+        and callers lower-case the probe value.
+        """
+
+        return frozenset(
+            e.strip().lower()
+            for e in self.admin_emails.split(",")
+            if e.strip()
+        )
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

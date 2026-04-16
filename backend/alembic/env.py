@@ -19,6 +19,7 @@ from app.db import Base
 # alembic reads ``target_metadata``. Importing the domain ``models`` module
 # is a deliberate side-effect import: autogenerate diffs depend on it.
 import app.items.models  # noqa: F401
+import app.auth.models  # noqa: F401
 from app.settings import get_settings
 
 config = context.config
