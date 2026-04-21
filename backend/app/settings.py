@@ -64,6 +64,29 @@ class Settings(BaseSettings):
             if e.strip()
         )
 
+    # ---- Email / OTP (feat_auth_002) ------------------------------------
+    # Controls how OTP codes are delivered, how long they live, and how
+    # aggressively the rate-limiter throttles ``/auth/otp/request``. See
+    # ``docs/specs/feat_auth_002/feat_auth_002.md`` §11 for the authoritative
+    # list and defaults.
+    email_provider: Literal["console", "resend"] = "console"
+    email_from: str = "minimalist-app <noreply@example.com>"
+    email_provider_timeout_seconds: float = 5.0
+    resend_api_key: str = ""
+
+    otp_code_ttl_seconds: int = 600
+    otp_max_attempts: int = 5
+    otp_rate_per_minute: int = 1
+    otp_rate_per_hour: int = 10
+
+    # Test-only OTP fixture (see feat_auth_002 spec requirement 9).
+    # Intentionally has NO compiled-in default beyond empty string;
+    # populated from env ONLY in the test environment. Must stay empty
+    # in dev/prod. ``app.auth.email.factory.build_email_sender`` refuses
+    # to start when either is set with ``env != "test"``.
+    test_otp_email: str = ""
+    test_otp_code: str = ""
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
