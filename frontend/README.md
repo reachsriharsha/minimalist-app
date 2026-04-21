@@ -42,6 +42,7 @@ render a blank screen.
 | `bun run dev` | Start the Vite dev server (default port 5173) with HMR and the `/api` proxy. |
 | `bun run build` | Type-check (`tsc -b`) and produce a production bundle in `dist/`. |
 | `bun run preview` | Serve the built `dist/` locally for sanity checks. |
+| `bun run test:e2e` | Run the Playwright login e2e suite against the compose stack (requires `make up` first; see [Testing](#testing)). |
 
 A thin `start.sh` wrapper mirrors `backend/start.sh` and dispatches to the same
 commands, so local and (later) containerized entrypoints stay aligned:
@@ -88,14 +89,78 @@ frontend/
   tsconfig.app.json          # App-side TS config (strict mode on)
   tsconfig.node.json         # TS config for vite.config.ts itself
   vite.config.ts             # Vite + React plugin + /api proxy
+  playwright.config.ts       # Playwright e2e config (feat_frontend_002)
   .env.example               # VITE_API_BASE_URL default
-  .gitignore                 # Ignores node_modules/, dist/, .env (not .env.example, not bun.lockb)
+  .gitignore                 # Ignores node_modules/, dist/, .env, test-results/, playwright-report/
   src/
-    main.tsx                 # React entry point
-    App.tsx                  # Hello page (loading / error / success)
+    main.tsx                 # React entry point (BrowserRouter + AuthProvider)
+    App.tsx                  # Routing root (/login public, / authed)
     App.css
     index.css
     vite-env.d.ts            # ImportMetaEnv augmentation for VITE_API_BASE_URL
     api/
       client.ts              # Typed getHello() + HelloResponse type
+      auth.ts                # getMe(), logout(), requestOtp(), verifyOtp() + Me type
+    auth/
+      AuthContext.tsx        # {user, status, refresh, logout} provider + useAuth()
+      RequireAuth.tsx        # Route gate (loading / redirect / render)
+    components/
+      AuthedLayout.tsx       # Header + <main> wrapper for authed routes
+      Header.tsx              # Email + role chips + logout button
+      HelloPanel.tsx         # Extracted hello widget (rendered in Dashboard)
+    pages/
+      LoginPage.tsx          # /login — two-step OTP form
+      Dashboard.tsx          # / — greeting + roles + HelloPanel
+  tests/
+    e2e/
+      fixtures.ts            # getOtpFixture() — reads TEST_OTP_EMAIL/CODE
+      login.spec.ts          # End-to-end login flow + relative-URL invariant
 ```
+
+## Testing
+
+### End-to-end (Playwright)
+
+`feat_frontend_002` ships a Playwright login e2e suite that drives a real
+browser against the compose stack. It is **not** part of `./test.sh` — it runs
+via a separate `bun run test:e2e` invocation, mirroring how the external REST
+suite under `tests/` is invoked.
+
+One-time setup per machine:
+
+```bash
+cd frontend
+bun install
+bunx playwright install chromium
+```
+
+Set the test OTP fixture (consumed both by the backend when `ENV=test` and by
+the Playwright runner itself). Edit `infra/.env`:
+
+```ini
+ENV=test
+TEST_OTP_EMAIL=e2e@example.com
+TEST_OTP_CODE=424242
+```
+
+Then start the stack and run the suite:
+
+```bash
+# from repo root
+make up
+
+# in another shell, export the same pair so the runner sees them too
+export TEST_OTP_EMAIL=e2e@example.com
+export TEST_OTP_CODE=424242
+
+cd frontend
+bun run test:e2e
+```
+
+When either env var is unset, the suite prints a clean skip and exits 0 —
+mirroring the behavior of `tests/tests/test_auth.py`. See
+[`docs/deployment/email-otp-setup.md#e2e-smoke-test`](../docs/deployment/email-otp-setup.md#e2e-smoke-test)
+for the full operator flow including prod-profile overrides.
+
+> Playwright is intentionally a **dev dependency only** in `package.json`. The
+> production bundle has no knowledge of the test runner or its browsers.

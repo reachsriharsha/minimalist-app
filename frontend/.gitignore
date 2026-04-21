@@ -13,6 +13,12 @@ dist-ssr/
 *.local
 *.tsbuildinfo
 
+# Playwright (feat_frontend_002)
+test-results/
+playwright-report/
+playwright/.cache/
+tests/e2e/.auth/
+
 # Dependency directories
 node_modules/
 

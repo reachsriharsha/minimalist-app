@@ -187,3 +187,99 @@ test code sign in as the configured canary account.
 If you hit `EmailProviderConfigError: TEST_OTP_EMAIL / TEST_OTP_CODE
 are set but ENV != 'test'` on startup, clear both values in your
 `infra/.env` (or set `ENV=test`, in a genuinely test-only host).
+
+## E2E smoke test
+
+`feat_frontend_002` adds a Playwright e2e suite under
+`frontend/tests/e2e/` that drives the full OTP login flow through a
+real Chromium. The suite consumes the same `TEST_OTP_EMAIL` /
+`TEST_OTP_CODE` pair documented above. It is **not** invoked by
+`./test.sh` — it runs as a separate `bun run test:e2e` from the
+`frontend/` directory, mirroring how the external REST suite under
+`tests/` is invoked.
+
+### One-time setup per machine
+
+```bash
+cd frontend
+bun install
+bunx playwright install chromium
+```
+
+Only Chromium is required; the suite uses a single `chromium` project.
+Skip `firefox` and `webkit` unless you plan to cross-test manually.
+
+### Configure the fixture
+
+Edit `infra/.env` on the host that will run the stack:
+
+```ini
+ENV=test
+TEST_OTP_EMAIL=e2e@example.com
+TEST_OTP_CODE=424242
+
+# Optional: relax the OTP per-minute/per-hour limits so the suite can
+# re-run without tripping 429.
+OTP_RATE_PER_MINUTE=60
+OTP_RATE_PER_HOUR=600
+```
+
+`ENV=test` is required — the backend's `build_email_sender` refuses to
+start with the fixture pair set in any other environment.
+
+### Run the suite
+
+From the repo root:
+
+```bash
+make up   # brings up backend + postgres + redis + frontend on :5173
+```
+
+In another shell, export the same pair so the **Playwright runner**
+sees them (the backend reads them out of the compose `env_file`; the
+runner reads them out of its own process env, so you have to export
+them in the shell where you invoke `bun run test:e2e`):
+
+```bash
+export TEST_OTP_EMAIL=e2e@example.com
+export TEST_OTP_CODE=424242
+
+cd frontend
+bun run test:e2e
+```
+
+Expected output: one green test, roughly 10-20 seconds on a warm
+Docker host.
+
+### Behavior when the fixture is unset
+
+If you run `bun run test:e2e` without exporting the pair, the suite
+prints a clean skip and exits 0 — not a red failure. This mirrors
+`tests/tests/test_auth.py`'s `_otp_fixture_env` skip behavior.
+
+### Prod-profile frontend
+
+When the stack is brought up with `--profile prod`, the frontend is
+served by nginx on `:8080` instead of Vite on `:5173`. Point
+Playwright at the prod origin:
+
+```bash
+PLAYWRIGHT_BASE_URL=http://localhost:8080 bun run test:e2e
+```
+
+The suite does not hardcode `:5173` outside the Playwright config's
+default.
+
+### Rate-limit retry
+
+Two consecutive full runs against the same `TEST_OTP_EMAIL` will trip
+the per-minute rate limit. The suite detects a 429 on
+`/otp/request` and calls `test.skip('OTP rate limit hit; retry
+later')` so a back-to-back invocation does not report a red failure.
+Either wait out the `Retry-After` window or bump `OTP_RATE_PER_MINUTE`
+in `infra/.env` (both shown above).
+
+> The Playwright suite is **not** a regression gate in `./test.sh`. It
+> is an operator smoke test you run locally before merging a PR that
+> touches login UI or the OTP flow. Wiring it into CI is deferred to a
+> later feature.
