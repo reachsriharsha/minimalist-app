@@ -9,4 +9,4 @@
 | feat_testing_001 | external REST functional test suite | Merged | #14 | #13 | #15 | - |
 | feat_backend_002 | backend rules and logging discipline | Merged | #17 | #16 | #18 | - |
 | feat_auth_001 | auth foundation: users, roles, identities, sessions | Merged | #20 | #19 | #21 | - |
-| feat_auth_002 | email OTP login: EmailSender, OTP endpoints, deployment docs | In Build | #22 | #23 | #24 | - |
+| feat_auth_002 | email OTP login: EmailSender, OTP endpoints, deployment docs | Merged | #22 | #23 | #24 | - |
