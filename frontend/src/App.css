@@ -49,3 +49,194 @@
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* ---- feat_frontend_002: login page ------------------------------------ */
+
+.login-page {
+  max-width: 26rem;
+  margin: 4rem auto;
+  padding: 2rem;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 0.75rem;
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.login-page__title {
+  margin-top: 0;
+  margin-bottom: 1.25rem;
+  font-size: 1.5rem;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.login-form__label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.login-form input {
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background-color: transparent;
+  color: inherit;
+  font-family: inherit;
+}
+
+.login-form input:focus-visible {
+  outline: 2px solid rgba(100, 160, 255, 0.6);
+  outline-offset: 1px;
+}
+
+.login-form__submit,
+.login-form__back,
+.google-btn {
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background-color: rgba(100, 160, 255, 0.12);
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.login-form__submit:disabled,
+.google-btn:disabled,
+.google-btn--disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.login-form__back {
+  background-color: transparent;
+  opacity: 0.75;
+}
+
+.login-form__error {
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(220, 50, 50, 0.5);
+  background-color: rgba(220, 50, 50, 0.08);
+  font-size: 0.95rem;
+}
+
+.login-form__info {
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(50, 180, 100, 0.5);
+  background-color: rgba(50, 180, 100, 0.08);
+  font-size: 0.95rem;
+}
+
+.login-form__divider {
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.55;
+  margin: 0.25rem 0;
+}
+
+/* ---- feat_frontend_002: header strip + authed layout ------------------ */
+
+.authed-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.authed-layout__main {
+  padding: 1.5rem;
+}
+
+.auth-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid rgba(127, 127, 127, 0.3);
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.auth-header__email {
+  font-weight: 600;
+}
+
+.auth-header__roles {
+  list-style: none;
+  display: flex;
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.role-chip {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.auth-header__logout {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.9rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background-color: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.auth-header__logout:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* ---- feat_frontend_002: dashboard ------------------------------------- */
+
+.dashboard {
+  max-width: 42rem;
+}
+
+.dashboard__greeting {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.dashboard__subtitle {
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.role-list {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0.25rem 0 1rem;
+}
+
+.hello-panel {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+}
+
+.hello-panel__title {
+  font-size: 1rem;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.auth-bootstrap {
+  margin: 4rem auto;
+  max-width: 20rem;
+  text-align: center;
+}
