@@ -1,11 +1,17 @@
 """End-to-end tests for the ``/auth/me`` + ``/auth/logout`` pair.
 
-Exercises the full lifecycle through the env-gated test-only mint endpoint:
+Exercises the full lifecycle through the real OTP flow (feat_auth_002):
 
-mint → /auth/me → /auth/logout → /auth/me (401).
+  POST /auth/otp/request -> POST /auth/otp/verify -> /auth/me
+    -> /auth/logout -> /auth/me (401).
 
-Also covers ``ADMIN_EMAILS`` bootstrap, extra-roles parameter, idempotent
-mint, cookie attributes, and ``revoke_sessions_for_user`` end-to-end.
+Also covers ``ADMIN_EMAILS`` bootstrap, idempotent mint, cookie
+attributes, and ``revoke_sessions_for_user`` end-to-end.
+
+feat_auth_001's nine cases are preserved; only the "how do we get a
+cookie" step changes. The ``extra_roles`` case (001's case 4) is
+deleted because ``OtpVerifyIn`` does not accept caller-specified
+roles -- real login paths never do.
 """
 
 from __future__ import annotations
@@ -22,10 +28,27 @@ from app.main import create_app
 from app.settings import Settings, reset_settings_cache
 
 
+_TEST_EMAIL = "melogout@x.com"
+_TEST_CODE = "654321"
+
+
+def _settings_for_email(email: str = _TEST_EMAIL, **overrides) -> Settings:
+    """Build a ``Settings(env='test', ...)`` with the OTP fixture set."""
+
+    defaults: dict = dict(
+        env="test",
+        test_otp_email=email,
+        test_otp_code=_TEST_CODE,
+        # Loosen rate limit for repeat mints within a single test.
+        otp_rate_per_minute=100,
+        otp_rate_per_hour=1000,
+    )
+    defaults.update(overrides)
+    return Settings(**defaults)
+
+
 @pytest.fixture
 async def clean_db(require_db) -> str:
-    """Return the DB URL after truncating the auth tables."""
-
     engine = create_async_engine(require_db)
     try:
         async with engine.begin() as conn:
@@ -38,11 +61,6 @@ async def clean_db(require_db) -> str:
     finally:
         await engine.dispose()
     return require_db
-
-
-async def _build_client(settings: Settings):
-    app = create_app(settings)
-    return app, app.router.lifespan_context(app)
 
 
 @pytest.fixture
@@ -73,27 +91,39 @@ async def client_for_settings(require_db, require_redis, clean_db):
             await cm.__aexit__(None, None, None)
 
 
-def _cookie_from(resp) -> str:
-    set_cookie = resp.headers.get("set-cookie") or ""
-    pairs = set_cookie.split(";")
-    first = pairs[0].strip()
-    assert first.startswith("session="), set_cookie
-    return first.removeprefix("session=")
+async def _mint_via_otp(
+    client: AsyncClient, email: str = _TEST_EMAIL, code: str = _TEST_CODE
+) -> tuple[str, dict]:
+    """Mint a session via real OTP, return ``(session_id, verify_body)``."""
+
+    req = await client.post(
+        "/api/v1/auth/otp/request", json={"email": email}
+    )
+    assert req.status_code == 204, req.text
+
+    ver = await client.post(
+        "/api/v1/auth/otp/verify",
+        json={"email": email, "code": code},
+    )
+    assert ver.status_code == 200, ver.text
+
+    set_cookie = ver.headers.get("set-cookie", "")
+    assert set_cookie.startswith("session=") or "session=" in set_cookie
+    first = set_cookie.split(";", 1)[0]
+    name, raw = first.split("=", 1)
+    assert name.strip() == "session"
+    return raw, ver.json()
 
 
 async def test_happy_path_mint_me_logout_me(client_for_settings):
-    _app, client = await client_for_settings(Settings(env="test"))
-
-    # 1. Mint
-    mint = await client.post(
-        "/api/v1/_test/session",
-        json={"email": "a@x.com", "display_name": "Alice"},
+    _app, client = await client_for_settings(
+        _settings_for_email("a@x.com")
     )
-    assert mint.status_code == 200, mint.text
-    sid = _cookie_from(mint)
-    body = mint.json()
+
+    # 1. Mint via OTP
+    sid, body = await _mint_via_otp(client, email="a@x.com")
     assert body["email"] == "a@x.com"
-    assert body["display_name"] == "Alice"
+    assert body["display_name"] is None
     assert body["roles"] == ["user"]
 
     # 2. /auth/me (1)
@@ -103,7 +133,6 @@ async def test_happy_path_mint_me_logout_me(client_for_settings):
     assert me1.status_code == 200
     b1 = me1.json()
     assert b1["email"] == "a@x.com"
-    assert b1["display_name"] == "Alice"
     assert b1["roles"] == ["user"]
 
     # 3. /auth/logout
@@ -116,7 +145,7 @@ async def test_happy_path_mint_me_logout_me(client_for_settings):
     assert "session=" in set_cookie
     assert "Max-Age=0" in set_cookie or "max-age=0" in set_cookie.lower()
 
-    # 4. /auth/me (2) — session is gone.
+    # 4. /auth/me (2) -- session is gone.
     me2 = await client.get(
         "/api/v1/auth/me", cookies={"session": sid}
     )
@@ -125,15 +154,10 @@ async def test_happy_path_mint_me_logout_me(client_for_settings):
 
 async def test_admin_emails_bootstrap(client_for_settings):
     _app, client = await client_for_settings(
-        Settings(env="test", admin_emails="alice@x.com")
+        _settings_for_email("alice@x.com", admin_emails="alice@x.com")
     )
 
-    mint = await client.post(
-        "/api/v1/_test/session",
-        json={"email": "alice@x.com"},
-    )
-    assert mint.status_code == 200, mint.text
-    sid = _cookie_from(mint)
+    sid, _ = await _mint_via_otp(client, email="alice@x.com")
 
     me = await client.get("/api/v1/auth/me", cookies={"session": sid})
     assert me.status_code == 200
@@ -143,53 +167,27 @@ async def test_admin_emails_bootstrap(client_for_settings):
 
 async def test_non_bootstrap_user_only_gets_user(client_for_settings):
     _app, client = await client_for_settings(
-        Settings(env="test", admin_emails="alice@x.com")
+        _settings_for_email("bob@x.com", admin_emails="alice@x.com")
     )
 
-    mint = await client.post(
-        "/api/v1/_test/session",
-        json={"email": "bob@x.com"},
-    )
-    assert mint.status_code == 200
-    sid = _cookie_from(mint)
+    sid, _ = await _mint_via_otp(client, email="bob@x.com")
 
     me = await client.get("/api/v1/auth/me", cookies={"session": sid})
     assert me.status_code == 200
     assert me.json()["roles"] == ["user"]
 
 
-async def test_extra_roles_parameter(client_for_settings):
-    _app, client = await client_for_settings(Settings(env="test"))
-
-    mint = await client.post(
-        "/api/v1/_test/session",
-        json={"email": "a@x.com", "roles": ["admin"]},
-    )
-    assert mint.status_code == 200, mint.text
-    sid = _cookie_from(mint)
-
-    me = await client.get("/api/v1/auth/me", cookies={"session": sid})
-    assert me.status_code == 200
-    roles = set(me.json()["roles"])
-    # User always granted as the default; admin granted via extra_roles.
-    assert roles == {"user", "admin"}
-
-
 async def test_idempotent_mint(client_for_settings, require_db):
-    _app, client = await client_for_settings(Settings(env="test"))
+    """Two OTP cycles for the same email leave one users row + one identity."""
 
-    r1 = await client.post(
-        "/api/v1/_test/session",
-        json={"email": "a@x.com"},
+    _app, client = await client_for_settings(
+        _settings_for_email("a@x.com")
     )
-    r2 = await client.post(
-        "/api/v1/_test/session",
-        json={"email": "a@x.com"},
-    )
-    assert r1.status_code == 200
-    assert r2.status_code == 200
 
-    # Exactly one users row and zero auth_identities rows for that email.
+    sid1, _ = await _mint_via_otp(client, email="a@x.com")
+    sid2, _ = await _mint_via_otp(client, email="a@x.com")
+    assert sid1 != sid2
+
     engine = create_async_engine(require_db)
     try:
         sm = build_sessionmaker(engine)
@@ -208,25 +206,23 @@ async def test_idempotent_mint(client_for_settings, require_db):
                     )
                 )
             ).scalars().all()
-            assert identities == []
+            # feat_auth_002 creates exactly one identity row on first
+            # OTP login and reuses it on the second.
+            assert len(identities) == 1
+            assert identities[0].provider == "email"
+            assert identities[0].provider_user_id == "a@x.com"
     finally:
         await engine.dispose()
 
 
 async def test_revoke_sessions_for_user_end_to_end(client_for_settings):
-    app, client = await client_for_settings(Settings(env="test"))
-
-    # Mint two sessions for the same user (two separate POSTs).
-    m1 = await client.post(
-        "/api/v1/_test/session", json={"email": "a@x.com"}
+    app, client = await client_for_settings(
+        _settings_for_email("a@x.com")
     )
-    sid_a = _cookie_from(m1)
 
-    m2 = await client.post(
-        "/api/v1/_test/session", json={"email": "a@x.com"}
-    )
-    sid_b = _cookie_from(m2)
-
+    # Mint two sessions for the same user (two separate OTP cycles).
+    sid_a, _ = await _mint_via_otp(client, email="a@x.com")
+    sid_b, _ = await _mint_via_otp(client, email="a@x.com")
     assert sid_a != sid_b
 
     # Pull the user ID out of /auth/me.
@@ -261,7 +257,7 @@ async def test_logout_without_session_is_401(client_for_settings):
 
     # Capture Redis commands by intercepting execute_command. The logout
     # handler should never reach the ``delete`` call on an unauthenticated
-    # request — the ``current_user`` dependency short-circuits first.
+    # request -- the ``current_user`` dependency short-circuits first.
     captured: list[str] = []
     orig = redis.execute_command
 
@@ -276,25 +272,28 @@ async def test_logout_without_session_is_401(client_for_settings):
         redis.execute_command = orig  # type: ignore[assignment]
 
     assert resp.status_code == 401
-    # No DEL issued against any session key.
     assert not any(cmd == "DEL" for cmd in captured), captured
 
 
 async def test_cookie_attributes_insecure(client_for_settings):
     _app, client = await client_for_settings(
-        Settings(env="test", session_cookie_secure=False)
+        _settings_for_email("a@x.com", session_cookie_secure=False)
     )
 
-    mint = await client.post(
-        "/api/v1/_test/session", json={"email": "a@x.com"}
+    req = await client.post(
+        "/api/v1/auth/otp/request", json={"email": "a@x.com"}
     )
-    assert mint.status_code == 200
-    sc = mint.headers.get("set-cookie", "")
+    assert req.status_code == 204
+    ver = await client.post(
+        "/api/v1/auth/otp/verify",
+        json={"email": "a@x.com", "code": _TEST_CODE},
+    )
+    assert ver.status_code == 200
+    sc = ver.headers.get("set-cookie", "")
 
     assert "HttpOnly" in sc
     assert "SameSite=Lax" in sc or "samesite=lax" in sc.lower()
     assert "Path=/" in sc
-    # Max-Age matches the default settings.session_ttl_seconds (86400).
     assert "Max-Age=86400" in sc or "max-age=86400" in sc.lower()
     # Secure absent.
     assert "Secure" not in sc
@@ -302,13 +301,18 @@ async def test_cookie_attributes_insecure(client_for_settings):
 
 async def test_cookie_attributes_secure(client_for_settings):
     _app, client = await client_for_settings(
-        Settings(env="test", session_cookie_secure=True)
+        _settings_for_email("a@x.com", session_cookie_secure=True)
     )
 
-    mint = await client.post(
-        "/api/v1/_test/session", json={"email": "a@x.com"}
+    req = await client.post(
+        "/api/v1/auth/otp/request", json={"email": "a@x.com"}
     )
-    assert mint.status_code == 200
-    sc = mint.headers.get("set-cookie", "")
+    assert req.status_code == 204
+    ver = await client.post(
+        "/api/v1/auth/otp/verify",
+        json={"email": "a@x.com", "code": _TEST_CODE},
+    )
+    assert ver.status_code == 200
+    sc = ver.headers.get("set-cookie", "")
 
     assert "Secure" in sc
