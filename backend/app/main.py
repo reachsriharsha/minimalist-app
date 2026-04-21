@@ -17,6 +17,7 @@ from fastapi import FastAPI
 
 from app.api.health import router as health_router
 from app.api.v1 import api_v1_router
+from app.auth.email import build_email_sender
 from app.db import build_engine, build_sessionmaker
 from app.errors import install_exception_handlers
 from app.logging import configure_logging, get_logger
@@ -44,15 +45,34 @@ def _make_lifespan(settings: Settings):
         sessionmaker = build_sessionmaker(engine)
         redis = build_redis(settings.redis_url)
 
+        # feat_auth_002: build the email sender once at startup. The
+        # factory validates the provider configuration; any misconfiguration
+        # (unknown provider, empty Resend API key, test-OTP fixture set
+        # outside ENV=test) raises ``EmailProviderConfigError`` here so
+        # ``make up`` fails loudly.
+        email_sender = build_email_sender(settings)
+
         app.state.settings = settings
         app.state.engine = engine
         app.state.sessionmaker = sessionmaker
         app.state.redis = redis
+        app.state.email_sender = email_sender
 
         try:
             yield
         finally:
             log.info("app_shutdown")
+            # Close the email sender's HTTP client if it owns one.
+            # ConsoleEmailSender has no aclose; ResendEmailSender's
+            # aclose is a no-op when it did not lazily build a client.
+            aclose = getattr(email_sender, "aclose", None)
+            if aclose is not None:
+                try:
+                    await aclose()
+                except Exception as exc:  # noqa: BLE001
+                    log.warning(
+                        "email_sender_close_failed", error=str(exc)
+                    )
             try:
                 await redis.aclose()
             except Exception as exc:  # noqa: BLE001
@@ -104,14 +124,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(api_v1_router)
 
-    # Env-gated test-only session mint. Imported inside the branch so
-    # production builds do not even parse the symbol. See
-    # ``docs/specs/feat_auth_001/design_auth_001.md`` →
-    # "Test-only session-mint endpoint".
-    if resolved.env == "test":
-        from app.auth.router import test_router
-
-        app.include_router(test_router, prefix="/api/v1")
+    # feat_auth_002 removed the env-gated test-only session mint that
+    # feat_auth_001 shipped. OTP verify is now the single session-
+    # minting path; tests use the ``TEST_OTP_EMAIL`` / ``TEST_OTP_CODE``
+    # fixture (see ``docs/specs/feat_auth_002/feat_auth_002.md``
+    # requirement 9) to drive ``/auth/otp/request`` + ``/auth/otp/verify``
+    # deterministically.
 
     return app
 
