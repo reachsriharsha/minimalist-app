@@ -15,9 +15,9 @@ This module is intentionally small. It:
 2. Grants an ``admin`` role to a freshly-created user whose email
    appears in that set, idempotently.
 
-The user-creation code path itself lives in the test-only mint
-(``POST /api/v1/_test/session``) and will later live in
-``feat_auth_002`` (OTP verify) and ``feat_auth_003`` (OAuth callback).
+The user-creation code path lives in ``feat_auth_002`` (OTP verify, via
+``app.auth.service.find_or_create_user_for_otp``) and will extend to
+``feat_auth_003`` (OAuth callback) when Google login lands.
 
 Implementation note: all role-set manipulation goes through explicit
 SELECT/INSERT on the association table, not through the ORM relationship
