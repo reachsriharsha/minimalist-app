@@ -19,25 +19,16 @@ export interface HelloResponse {
 }
 
 /**
- * Base URL for backend API calls.
- *
- * Read from `import.meta.env.VITE_API_BASE_URL` at build time. When unset we
- * fall back to an empty string so the request URL is a relative path
- * (`/api/v1/hello`), which resolves against the current origin. Under
- * `bun run dev` the Vite dev-server proxy forwards `/api/*` to the backend,
- * so a missing env file still works without code changes.
- */
-const baseUrl: string = import.meta.env.VITE_API_BASE_URL ?? '';
-
-/**
  * Fetch the hello payload from the backend.
  *
- * Throws on network failure or any non-2xx response. Callers are expected to
- * handle both cases in a single `catch` branch and surface `error.message` to
- * the user. The function never retries, caches, or sets auth headers.
+ * Uses a relative URL so the request is same-origin against the page host.
+ * In `bun run dev` the Vite dev server proxies `/api/*` to the backend
+ * (target configured via `VITE_API_BASE_URL` in `vite.config.ts`), which
+ * sidesteps CORS. Throws on network failure or any non-2xx response. The
+ * function never retries, caches, or sets auth headers.
  */
 export async function getHello(): Promise<HelloResponse> {
-  const url = `${baseUrl}/api/v1/hello`;
+  const url = '/api/v1/hello';
 
   let response: Response;
   try {
