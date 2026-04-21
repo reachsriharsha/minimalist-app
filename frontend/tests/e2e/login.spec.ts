@@ -48,12 +48,13 @@ test.describe('login flow', () => {
     // --- set up network listeners up front so we see every request
     // including the initial navigation + bootstrap /auth/me call ------
     const apiOrigins: string[] = [];
-    const googleClickRequests: string[] = [];
+    const allRequests: string[] = [];
     const consoleLines: string[] = [];
     const pageOrigin = new URL(baseURL ?? 'http://localhost:5173').origin;
 
     page.on('request', (req: Request) => {
       const url = req.url();
+      allRequests.push(url);
       if (url.includes('/api/v1/')) {
         apiOrigins.push(new URL(url).origin);
       }
@@ -84,11 +85,7 @@ test.describe('login flow', () => {
     // exercise the click + assert no network request went out. Use
     // force:true so Playwright doesn't refuse to click a disabled
     // element.
-    page.on('request', (req: Request) => {
-      // Record any request emitted during the narrow click window.
-      googleClickRequests.push(req.url());
-    });
-    const googleClickBefore = googleClickRequests.length;
+    const beforeClick = allRequests.length;
     await googleBtn.click({ force: true }).catch(() => {
       // Some Playwright versions throw when click-targets are disabled;
       // either way, a disabled element produces no network side-effect,
@@ -97,11 +94,11 @@ test.describe('login flow', () => {
     // Give any would-be fetch a tick to settle, then assert nothing
     // new-fetchable fired on the click.
     await page.waitForTimeout(100);
-    const googleClickAfter = googleClickRequests.length;
-    const newRequests = googleClickRequests.slice(googleClickBefore, googleClickAfter);
-    // Filter noise: browsers sometimes prefetch, retry favicons, etc.
+    const newRequests = allRequests.slice(beforeClick);
     // We only care that no /api/v1/* call (nor any URL containing
     // "google") fired because the user clicked the disabled button.
+    // HMR/dev-server traffic (/@vite/, /src/*, /node_modules/.vite/) is
+    // ignored as noise.
     const googleAuthHits = newRequests.filter(
       (url) => url.includes('/api/v1/') || url.toLowerCase().includes('google'),
     );
