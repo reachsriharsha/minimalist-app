@@ -44,7 +44,7 @@ The full ruleset for feature IDs, branch names, commit prefixes, PR titles, labe
 | `feat_backend_002`      | In Build   | Backend rules (`backend/RULES.md`), logging callsite + redaction, items domain move. |
 | `feat_auth_001`         | In Build   | Auth foundation: users/roles/identities schema, Redis sessions, `SessionMiddleware`, `/auth/me`, `/auth/logout`. |
 | `feat_auth_002`         | Merged     | Email OTP login: `EmailSender` abstraction, `/auth/otp/request` + `/auth/otp/verify`, Resend provider, deployment docs. |
-| `feat_frontend_002`     | In Build   | Login UI: `AuthContext`, `/login` OTP page with disabled Google-coming-soon button, authed dashboard + header strip, Playwright e2e suite. |
+| `feat_frontend_002`     | Merged     | Login UI: `AuthContext`, `/login` OTP page with disabled Google-coming-soon button, authed dashboard + header strip, Playwright e2e suite. |
 | `feat_frontend_003`     | In Spec    | Profile page: `/profile` authed route, plain-text Profile button at the leftmost slot of `<Header>`, email-only page body, Playwright e2e. |
 
 Future features append rows to this table as they are planned.
