@@ -42,7 +42,7 @@ render a blank screen.
 | `bun run dev` | Start the Vite dev server (default port 5173) with HMR and the `/api` proxy. |
 | `bun run build` | Type-check (`tsc -b`) and produce a production bundle in `dist/`. |
 | `bun run preview` | Serve the built `dist/` locally for sanity checks. |
-| `bun run test:e2e` | Run the Playwright login e2e suite against the compose stack (requires `make up` first; see [Testing](#testing)). |
+| `bun run test:e2e` | Run the Playwright e2e suite (`login.spec.ts` + `profile.spec.ts`) against the compose stack (requires `make up` first; see [Testing](#testing)). |
 
 A thin `start.sh` wrapper mirrors `backend/start.sh` and dispatches to the same
 commands, so local and (later) containerized entrypoints stay aligned:
@@ -111,20 +111,24 @@ frontend/
     pages/
       LoginPage.tsx          # /login — two-step OTP form
       Dashboard.tsx          # / — greeting + roles + HelloPanel
+      ProfilePage.tsx        # /profile — email-only page (feat_frontend_003)
   tests/
     e2e/
       fixtures.ts            # getOtpFixture() — reads TEST_OTP_EMAIL/CODE
       login.spec.ts          # End-to-end login flow + relative-URL invariant
+      profile.spec.ts        # /profile route + header Profile button (feat_frontend_003)
 ```
 
 ## Testing
 
 ### End-to-end (Playwright)
 
-`feat_frontend_002` ships a Playwright login e2e suite that drives a real
-browser against the compose stack. It is **not** part of `./test.sh` — it runs
-via a separate `bun run test:e2e` invocation, mirroring how the external REST
-suite under `tests/` is invoked.
+`feat_frontend_002` introduced the Playwright e2e suite that drives a real
+browser against the compose stack; `feat_frontend_003` extends it with a
+profile-page spec. The suite currently runs `login.spec.ts` and
+`profile.spec.ts`. It is **not** part of `./test.sh` — it runs via a separate
+`bun run test:e2e` invocation, mirroring how the external REST suite under
+`tests/` is invoked.
 
 One-time setup per machine:
 
