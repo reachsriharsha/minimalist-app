@@ -3,12 +3,14 @@
  *
  * `feat_frontend_001` shipped a single-page hello view here. With
  * `feat_frontend_002` the hello view moves into `HelloPanel` and is
- * rendered from the authed `Dashboard`. This file now only wires the
- * routes.
+ * rendered from the authed `Dashboard`. `feat_frontend_003` adds a
+ * second authed route (`/profile`) that follows the same gate +
+ * layout pattern.
  *
  * Route table:
  *   /login       — public, the two-step OTP form (LoginPage)
  *   /            — authed, dashboard wrapped in <AuthedLayout>
+ *   /profile     — authed, profile page wrapped in <AuthedLayout>
  *   *            — redirect to `/` so typos flow through the auth gate
  *
  * `<BrowserRouter>` and `<AuthProvider>` are applied at `main.tsx` one
@@ -22,6 +24,7 @@ import { RequireAuth } from './auth/RequireAuth';
 import { AuthedLayout } from './components/AuthedLayout';
 import Dashboard from './pages/Dashboard';
 import LoginPage from './pages/LoginPage';
+import ProfilePage from './pages/ProfilePage';
 
 export default function App() {
   return (
@@ -33,6 +36,16 @@ export default function App() {
           <RequireAuth>
             <AuthedLayout>
               <Dashboard />
+            </AuthedLayout>
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <RequireAuth>
+            <AuthedLayout>
+              <ProfilePage />
             </AuthedLayout>
           </RequireAuth>
         }

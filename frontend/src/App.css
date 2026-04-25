@@ -240,3 +240,42 @@
   max-width: 20rem;
   text-align: center;
 }
+
+/* ---- feat_frontend_003: profile button + page ------------------------- */
+
+.auth-header__profile {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.9rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  background-color: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.auth-header__profile:focus-visible {
+  outline: 2px solid rgba(100, 160, 255, 0.6);
+  outline-offset: 1px;
+}
+
+.profile-page {
+  max-width: 42rem;
+}
+
+.profile-page__title {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+}
+
+.profile-page__email {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 0;
+}
+
+.profile-loading {
+  margin: 4rem auto;
+  max-width: 20rem;
+  text-align: center;
+}
