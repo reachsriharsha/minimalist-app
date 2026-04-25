@@ -11,4 +11,4 @@
 | feat_auth_001 | auth foundation: users, roles, identities, sessions | Merged | #20 | #19 | #21 | - |
 | feat_auth_002 | email OTP login: EmailSender, OTP endpoints, deployment docs | Merged | #22 | #23 | #24 | - |
 | feat_frontend_002 | login UI: AuthContext, /login page, dashboard, Playwright e2e | Merged | #25 | #26 | #27 | - |
-| feat_frontend_003 | profile page: /profile route, header Profile button, email-only view | Ready | #28 | #29 | - | - |
+| feat_frontend_003 | profile page: /profile route, header Profile button, email-only view | In Build | #28 | #29 | - | - |
