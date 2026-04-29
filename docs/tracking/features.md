@@ -12,4 +12,4 @@
 | feat_auth_002 | email OTP login: EmailSender, OTP endpoints, deployment docs | Merged | #22 | #23 | #24 | - |
 | feat_frontend_002 | login UI: AuthContext, /login page, dashboard, Playwright e2e | Merged | #25 | #26 | #27 | - |
 | feat_frontend_003 | profile page: /profile route, header Profile button, email-only view | Merged | #28 | #29 | #30 | - |
-| feat_frontend_004 | dark mode: fixed bottom-left toggle, two-state light/dark, persisted | In Build | #31 | #32 | - | - |
+| feat_frontend_004 | dark mode: fixed bottom-left toggle, two-state light/dark, persisted | In Build | #31 | #32 | #33 | - |
