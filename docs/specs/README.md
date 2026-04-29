@@ -46,6 +46,6 @@ The full ruleset for feature IDs, branch names, commit prefixes, PR titles, labe
 | `feat_auth_002`         | Merged     | Email OTP login: `EmailSender` abstraction, `/auth/otp/request` + `/auth/otp/verify`, Resend provider, deployment docs. |
 | `feat_frontend_002`     | Merged     | Login UI: `AuthContext`, `/login` OTP page with disabled Google-coming-soon button, authed dashboard + header strip, Playwright e2e suite. |
 | `feat_frontend_003`     | Merged     | Profile page: `/profile` authed route, plain-text Profile button at the leftmost slot of `<Header>`, email-only page body, Playwright e2e. |
-| `feat_frontend_004`     | In Spec    | Dark mode: fixed bottom-left toggle, two-state light/dark, `localStorage`-persisted theme behind a `themeStorage` module, `data-theme` on `<html>`, CSS-variable palette, Playwright e2e. |
+| `feat_frontend_004`     | In Build   | Dark mode: fixed bottom-left toggle, two-state light/dark, `localStorage`-persisted theme behind a `themeStorage` module, `data-theme` on `<html>`, CSS-variable palette, Playwright e2e. |
 
 Future features append rows to this table as they are planned.
