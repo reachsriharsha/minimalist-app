@@ -7,8 +7,8 @@
  * `data-theme` is always set on `<html>`, so the `:root` defaults and
  * the explicit `data-theme="light"` rules are intentionally identical.
  *
- * The previous `@media (prefers-color-scheme: light)` block is removed
- * because the boot script now seeds from that media query exactly once
+ * The previous OS-preference media query is removed because the boot
+ * script in `index.html` now seeds from that media query exactly once
  * on first visit and persists the result; the OS preference is no
  * longer consulted on subsequent page loads.
  */
