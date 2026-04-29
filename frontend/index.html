@@ -3,6 +3,52 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      feat_frontend_004: synchronous theme boot.
+
+      Reads the persisted theme (or seeds it from prefers-color-scheme)
+      and applies the data-theme attribute on <html> BEFORE React
+      mounts. This eliminates the wrong-theme flash that would
+      otherwise occur between HTML parse and the first React effect.
+
+      Plain ES5 (no let/const/arrow/template literals) so it runs
+      without transpilation. Wrapped in try/catch so a localStorage
+      or matchMedia failure cannot break page load — the React layer
+      (ThemeProvider) re-reads the same value on mount and converges.
+    -->
+    <script>
+      (function () {
+        try {
+          var KEY = 'minimalist-app:theme:v1';
+          var stored = localStorage.getItem(KEY);
+          var theme;
+          if (stored === 'light' || stored === 'dark') {
+            theme = stored;
+          } else {
+            var prefersDark =
+              typeof window.matchMedia === 'function' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches;
+            theme = prefersDark ? 'dark' : 'light';
+            try { localStorage.setItem(KEY, theme); } catch (_e) {}
+          }
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (_e) {
+          // localStorage unavailable (private mode, etc.). Fall back to
+          // OS preference for this page load only; the ThemeProvider
+          // will converge on the same value on mount.
+          try {
+            var prefersDark2 =
+              typeof window.matchMedia === 'function' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.setAttribute(
+              'data-theme', prefersDark2 ? 'dark' : 'light'
+            );
+          } catch (_e2) {
+            document.documentElement.setAttribute('data-theme', 'light');
+          }
+        }
+      })();
+    </script>
     <title>minimalist-app</title>
   </head>
   <body>

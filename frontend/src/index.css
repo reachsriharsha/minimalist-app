@@ -1,10 +1,57 @@
+/*
+ * feat_frontend_004: CSS-variable palette.
+ *
+ * `:root` declares the LIGHT theme as the default. `[data-theme="dark"]`
+ * overrides each variable for the dark theme. The inline boot script
+ * in `index.html` and the `<ThemeProvider>` together guarantee
+ * `data-theme` is always set on `<html>`, so the `:root` defaults and
+ * the explicit `data-theme="light"` rules are intentionally identical.
+ *
+ * The previous `@media (prefers-color-scheme: light)` block is removed
+ * because the boot script now seeds from that media query exactly once
+ * on first visit and persists the result; the OS preference is no
+ * longer consulted on subsequent page loads.
+ */
+
 :root {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
   line-height: 1.5;
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+
+  /* Light theme (default). */
+  --bg: #ffffff;
+  --fg: #213547;
+  --fg-muted: rgba(33, 53, 71, 0.7);
+  --border: rgba(0, 0, 0, 0.15);
+  --surface: rgba(0, 0, 0, 0.025);
+  --accent: rgba(70, 130, 220, 0.85);
+  --accent-bg: rgba(70, 130, 220, 0.1);
+  --danger-fg: rgb(180, 30, 30);
+  --danger-border: rgba(180, 30, 30, 0.5);
+  --danger-bg: rgba(180, 30, 30, 0.06);
+  --success-fg: rgb(20, 120, 60);
+  --success-border: rgba(20, 120, 60, 0.45);
+  --success-bg: rgba(20, 120, 60, 0.08);
+
+  color: var(--fg);
+  background-color: var(--bg);
+}
+
+[data-theme='dark'] {
+  --bg: #242424;
+  --fg: rgba(255, 255, 255, 0.87);
+  --fg-muted: rgba(255, 255, 255, 0.6);
+  --border: rgba(255, 255, 255, 0.18);
+  --surface: rgba(255, 255, 255, 0.04);
+  --accent: rgba(100, 160, 255, 0.85);
+  --accent-bg: rgba(100, 160, 255, 0.12);
+  --danger-fg: rgb(255, 120, 120);
+  --danger-border: rgba(220, 50, 50, 0.5);
+  --danger-bg: rgba(220, 50, 50, 0.08);
+  --success-fg: rgb(120, 220, 160);
+  --success-border: rgba(50, 180, 100, 0.5);
+  --success-bg: rgba(50, 180, 100, 0.08);
 }
 
 body {
@@ -20,11 +67,4 @@ body {
   max-width: 48rem;
   margin: 0 auto;
   padding: 2rem;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
 }

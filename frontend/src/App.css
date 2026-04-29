@@ -23,14 +23,15 @@
   opacity: 0.75;
 }
 
+/* feat_frontend_004: error/success state panels migrated to vars. */
 .state--error {
-  border-color: rgba(220, 50, 50, 0.5);
-  background-color: rgba(220, 50, 50, 0.08);
+  border-color: var(--danger-border);
+  background-color: var(--danger-bg);
 }
 
 .state--success {
-  border-color: rgba(50, 180, 100, 0.5);
-  background-color: rgba(50, 180, 100, 0.08);
+  border-color: var(--success-border);
+  background-color: var(--success-bg);
 }
 
 .state dl {
@@ -52,13 +53,17 @@
 
 /* ---- feat_frontend_002: login page ------------------------------------ */
 
+/* feat_frontend_004: background-color migrated to var(--surface). The
+   border keeps its opacity-tinted neutral literal because rgba(127,127,127,...)
+   reads acceptably on both light and dark backgrounds and rewriting it adds
+   churn without payoff. */
 .login-page {
   max-width: 26rem;
   margin: 4rem auto;
   padding: 2rem;
   border: 1px solid rgba(127, 127, 127, 0.3);
   border-radius: 0.75rem;
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: var(--surface);
 }
 
 .login-page__title {
@@ -93,6 +98,8 @@
   outline-offset: 1px;
 }
 
+/* feat_frontend_004: background-color migrated to var(--accent-bg). The
+   border keeps its opacity-tinted neutral literal (theme-invariant). */
 .login-form__submit,
 .login-form__back,
 .google-btn {
@@ -100,7 +107,7 @@
   font-size: 1rem;
   border-radius: 0.4rem;
   border: 1px solid rgba(127, 127, 127, 0.4);
-  background-color: rgba(100, 160, 255, 0.12);
+  background-color: var(--accent-bg);
   color: inherit;
   font-family: inherit;
   cursor: pointer;
@@ -118,19 +125,20 @@
   opacity: 0.75;
 }
 
+/* feat_frontend_004: error/info banners migrated to danger/success vars. */
 .login-form__error {
   padding: 0.6rem 0.75rem;
   border-radius: 0.4rem;
-  border: 1px solid rgba(220, 50, 50, 0.5);
-  background-color: rgba(220, 50, 50, 0.08);
+  border: 1px solid var(--danger-border);
+  background-color: var(--danger-bg);
   font-size: 0.95rem;
 }
 
 .login-form__info {
   padding: 0.6rem 0.75rem;
   border-radius: 0.4rem;
-  border: 1px solid rgba(50, 180, 100, 0.5);
-  background-color: rgba(50, 180, 100, 0.08);
+  border: 1px solid var(--success-border);
+  background-color: var(--success-bg);
   font-size: 0.95rem;
 }
 
@@ -153,13 +161,15 @@
   padding: 1.5rem;
 }
 
+/* feat_frontend_004: background-color migrated to var(--surface). The
+   border keeps its opacity-tinted neutral literal (theme-invariant). */
 .auth-header {
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 0.75rem 1.5rem;
   border-bottom: 1px solid rgba(127, 127, 127, 0.3);
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: var(--surface);
 }
 
 .auth-header__email {
@@ -278,4 +288,31 @@
   margin: 4rem auto;
   max-width: 20rem;
   text-align: center;
+}
+
+/* ---- feat_frontend_004: theme toggle (fixed bottom-left) -------------- */
+
+.theme-toggle {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  z-index: 10;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  font-family: inherit;
+  /* No transition — flip is instant per the design. */
+}
+
+.theme-toggle:hover {
+  background-color: var(--accent-bg);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid rgba(100, 160, 255, 0.6);
+  outline-offset: 1px;
 }
